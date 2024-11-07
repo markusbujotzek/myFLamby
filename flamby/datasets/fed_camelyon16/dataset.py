@@ -2,6 +2,8 @@ import logging
 import os
 import random
 from pathlib import Path
+import hashlib
+
 
 import numpy as np
 import pandas as pd
@@ -249,6 +251,17 @@ class FedCamelyon16(Camelyon16Raw):
         self.features_centers = [
             fp for idx, fp in enumerate(self.features_centers) if to_select[idx]
         ]
+        self.hash_ids = [
+            hashlib.md5(str(self.features_paths[i]).encode("utf-8")).hexdigest()
+            for i in range(len(self.features_paths))
+        ]
+
+    def __getitem__(self, idx):
+        # Call the parent class's __getitem__ method to get X, y, and perm
+        X, y, perm = super().__getitem__(idx)
+        hash_id = self.hash_ids[idx]
+
+        return X, y, perm, hash_id
 
 
 def collate_fn(dataset_elements_list, max_tiles=10000):
@@ -269,16 +282,18 @@ def collate_fn(dataset_elements_list, max_tiles=10000):
         (len(dataset_elements_list),)
     """
     n = len(dataset_elements_list)
-    X0, y0, _ = dataset_elements_list[0]
+    X0, y0, _, hash_ids = dataset_elements_list[0]
     feature_dim = X0.size(1)
     X_dtype = X0.dtype
     y_dtype = y0.dtype
     X = torch.zeros((n, max_tiles, feature_dim), dtype=X_dtype)
     y = torch.empty((n, 1), dtype=y_dtype)
 
+    hash_ids = []
     for i in range(n):
-        X_current, y_current, perm = dataset_elements_list[i]
+        X_current, y_current, perm, current_hash_id = dataset_elements_list[i]
         ntiles_min = min(max_tiles, X_current.shape[0])
         X[i, :ntiles_min, :] = X_current[perm[:ntiles_min], :]
         y[i] = y_current
-    return X, y
+        hash_ids.append(current_hash_id)
+    return X, y, hash_ids

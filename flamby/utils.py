@@ -55,7 +55,7 @@ def evaluate_model_on_tests(
             torch.set_rng_state(rng_state)
             y_pred_final = []
             y_true_final = []
-            for X, y in test_dataloader_iterator:
+            for X, y, hash_id in test_dataloader_iterator:
                 if torch.cuda.is_available() and use_gpu:
                     X = X.cuda()
                     y = y.cuda()

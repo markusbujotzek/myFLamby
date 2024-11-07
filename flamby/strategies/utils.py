@@ -45,10 +45,10 @@ class DataLoaderWithMemory:
             a batch from the iterator
         """
         try:
-            X, y = next(self._iterator)
+            X, y, _ = next(self._iterator)
         except StopIteration:
             self._reset_iterator()
-            X, y = next(self._iterator)
+            X, y, _ = next(self._iterator)
         return X, y
 
 
