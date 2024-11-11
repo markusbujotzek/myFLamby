@@ -21,6 +21,7 @@ import os
 import sys
 from collections import OrderedDict
 from pathlib import Path
+import hashlib
 
 import numpy as np
 import pandas as pd
@@ -144,6 +145,10 @@ class Kits19Raw(Dataset):
             c += 1
         self.oversample_next_sample = 0
         self.centers = df2.site_ids
+        self.hash_ids = [
+            hashlib.md5(str(self.images_path[i]).encode("utf-8")).hexdigest()
+            for i in range(len(self.images_path))
+        ]
 
     def __len__(self):
         return len(self.images_path)
@@ -171,7 +176,7 @@ class Kits19Raw(Dataset):
         elif self.train_test == "test":
             item = self.test_transform(**item)
 
-        return np.squeeze(item["data"], axis=1), np.squeeze(item["target"], axis=1)
+        return np.squeeze(item["data"], axis=1), np.squeeze(item["target"], axis=1), self.hash_ids[idx]
 
     def oversample_foreground_class(self, case_all_data, force_fg, properties):
         # taken from nnunet
