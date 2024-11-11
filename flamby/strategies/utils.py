@@ -8,6 +8,8 @@ import torch
 from opacus import PrivacyEngine
 from torch.utils.tensorboard import SummaryWriter
 
+from flamby.utils import evaluate_model_on_tests
+
 
 class DataLoaderWithMemory:
     """This class allows to iterate the dataloader infinitely batch by batch.
@@ -139,6 +141,7 @@ class _Model:
             self.writer = SummaryWriter(
                 log_dir=os.path.join(logdir, f"{log_basename}-{date_now}")
             )
+            print(f"Logging to {os.path.join(logdir, f'{log_basename}-{date_now}')}")
 
         self._apply_dp = (
             (self.dp_target_epsilon is not None)
@@ -170,7 +173,7 @@ class _Model:
         self.batch_size = None
         self.num_batches_per_epoch = None
 
-    def _local_train(self, dataloader_with_memory, num_updates):
+    def _local_train(self, dataloader_with_memory, num_updates, validation_loader=None, metric=None):
         """This method trains the model using the dataloader_with_memory given
         for num_updates steps.
 
@@ -182,10 +185,15 @@ class _Model:
         num_updates : int
             The number of batches to train on.
         """
+        # for validation
+        res_max = 0
+        no_new_res_max = 0
+
         # Local train
         _size = len(dataloader_with_memory)
         self.model = self.model.train()
         for _batch in range(num_updates):
+            self.model.train()
             X, y = dataloader_with_memory.get_samples()
             X, y = X.to(self._device), y.to(self._device)
             if _batch == 0:
@@ -229,6 +237,20 @@ class _Model:
                         self.writer.add_histogram(
                             f"client{self.client_id}/{name}", p, _current_epoch
                         )
+
+            # Validation
+            if _batch % 10 == 0:
+                if validation_loader is not None:
+                    res, y_trues, y_preds = evaluate_model_on_tests(self.model, [validation_loader], metric, return_pred=True)
+                    print(f"Validation {metric}: {res}")
+                    if res["client_test_0"] > res_max:
+                        res_max = res["client_test_0"]
+                        print(f"New best model with {metric}: {res_max}")
+                    else:
+                        no_new_res_max += 1
+                        print(f"No new best model with {metric} for {no_new_res_max} epochs")
+                    if no_new_res_max > 100:
+                        break
 
             self.current_epoch = _current_epoch
 
