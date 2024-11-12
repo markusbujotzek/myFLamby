@@ -28,8 +28,8 @@ def Dice_coef(output, target, eps=1e-5):  # dice score used for evaluation
 
 
 def metric(predictions, gt):
-    gt = gt.float()
-    predictions = predictions.float()
+    gt = torch.tensor(gt).float()
+    predictions = torch.tensor(predictions).float()
     # Compute tumor+kidney Dice >0 (1+2)
     tk_pd = torch.gt(predictions, 0)
     tk_gt = torch.gt(gt, 0)

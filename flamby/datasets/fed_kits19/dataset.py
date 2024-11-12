@@ -22,6 +22,8 @@ import sys
 from collections import OrderedDict
 from pathlib import Path
 import hashlib
+import random
+import time
 
 import numpy as np
 import pandas as pd
@@ -146,7 +148,7 @@ class Kits19Raw(Dataset):
         self.oversample_next_sample = 0
         self.centers = df2.site_ids
         self.hash_ids = [
-            hashlib.md5(str(self.images_path[i]).encode("utf-8")).hexdigest()
+            hashlib.sha256((str(self.images_path[i]) + str(i) + str(time.time()) + str(random.random())).encode("utf-8")).hexdigest()
             for i in range(len(self.images_path))
         ]
 
