@@ -1,3 +1,4 @@
+import os
 import copy
 import random
 import time
@@ -78,6 +79,10 @@ def fill_df_with_xp_results(
                 **hyperparams,
             )
         )
+    # Create the parent directories if they don't exist
+    parent_dir = os.path.dirname(results_file)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
     # We update csv and save it when the results are there
     df = pd.DataFrame.from_dict(perf_lines_dicts)
     if dump:
