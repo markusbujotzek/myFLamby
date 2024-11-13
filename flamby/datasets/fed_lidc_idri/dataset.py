@@ -1,5 +1,8 @@
 import os
 from pathlib import Path
+import hashlib
+import random
+import time
 
 import nibabel as nib
 import pandas as pd
@@ -121,6 +124,11 @@ class LidcIdriRaw(Dataset):
             self.masks_paths.append(mask_path)
             self.features_centers.append(center_from_metadata)
             self.features_sets.append(split_from_metadata)
+        
+        self.hash_ids = [
+            hashlib.sha256((str(self.features_paths[i]) + str(i) + str(time.time()) + str(random.random())).encode("utf-8")).hexdigest()
+            for i in range(len(self.features_paths))
+        ]
 
     def __len__(self):
         return len(self.features_paths)
@@ -137,8 +145,8 @@ class LidcIdriRaw(Dataset):
         # Apply optional additional transforms, such as normalization
         if self.transform is not None:
             X = self.transform(X)
-        # Sample and return patches
-        return self.sampler(X, y)
+        # Sample and return patches + corresponding hash_id all in 1 tuple
+        return (self.sampler(X, y) + (self.hash_ids[idx],))
 
 
 class FedLidcIdri(LidcIdriRaw):
@@ -244,10 +252,10 @@ def collate_fn(dataset_elements_list):
     Tuple(torch.Tensor, torch.Tensor)
         X, y two torch tensors of size (B * S, 1, D, W, H)
     """
-    X, y = zip(*dataset_elements_list)
+    X, y, hash_id = zip(*dataset_elements_list)
     X, y = torch.cat(X), torch.cat(y)
     # Check that images and mask have a channel dimension
     if X.ndim == 5:
-        return X, y
+        return X, y, hash_id
     else:
-        return X.unsqueeze(1), y.unsqueeze(1)
+        return X.unsqueeze(1), y.unsqueeze(1), hash_id

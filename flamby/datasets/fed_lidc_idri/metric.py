@@ -46,7 +46,7 @@ def evaluate_dice_on_tests_by_chunks(model, test_dataloaders, use_gpu=True, nchu
         for i in tqdm(range(len(test_dataloaders))):
             test_dataloader_iterator = iter(test_dataloaders[i])
             dices = []
-            for (X, y) in test_dataloader_iterator:
+            for (X, y, _) in test_dataloader_iterator:
                 intersection = 0
                 union = 0
                 X = torch.chunk(X, nchunks)
