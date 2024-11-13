@@ -70,7 +70,7 @@ def evaluate_dice_on_tests(model, test_dataloaders, metric, use_gpu=True):
         for i in tqdm(range(len(test_dataloaders))):
             dice_list = []
             test_dataloader_iterator = iter(test_dataloaders[i])
-            for (X, y) in test_dataloader_iterator:
+            for (X, y, _) in test_dataloader_iterator:
                 if torch.cuda.is_available() and use_gpu:
                     X = X.cuda()
                     y = y.cuda()

@@ -435,7 +435,7 @@ def train_single_centric(
 
     grad_norm_history = []
     for _ in tqdm(range(num_epochs)):
-        for X, y in train_dl:
+        for X, y, _ in train_dl:
             if use_gpu:
                 # use GPU if requested and available
                 X = X.cuda()

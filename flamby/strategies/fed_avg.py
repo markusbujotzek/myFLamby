@@ -149,6 +149,7 @@ class FedAvg:
         - the averaged updates willl be used to update the local model
         """
         local_updates = list()
+        # iteratres over all clients
         for _model, dataloader_with_memory, size in zip(
             self.models_list, self.training_dataloaders_with_memory, self.training_sizes
         ):
@@ -193,6 +194,7 @@ class FedAvg:
         """This method performs self.nrounds rounds of averaging
         and returns the list of models.
         """
+        # iterate over nrounds federated communication rounds
         for _ in tqdm(range(self.nrounds)):
             self.perform_round()
         return [m.model for m in self.models_list]

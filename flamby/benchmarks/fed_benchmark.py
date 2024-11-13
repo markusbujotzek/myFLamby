@@ -26,6 +26,23 @@ from flamby.benchmarks.conf import (
 )
 from flamby.gpu_utils import use_gpu_idx
 
+def import_data_selection_method(data_selection_method):
+    global data_select_method
+
+    if data_selection_method == "KSLoss":
+        from src.fed.data_selection_methods.KSLoss.ksloss import KSLoss as data_select_method
+
+    elif not data_selection_method:
+        print(
+            "No dataselection method defined. You seem to enjoy wasting model performance, computational costs and energy!"
+        )
+
+    else:
+        # Raise an exception if sth went wrong
+        raise ValueError(
+            f"Data selection method '{data_selection_method}' is not supported. Please provide a valid method name."
+        )
+
 
 def main(args_cli):
     """This function will launch either all single-centric and the FL strategies
@@ -378,9 +395,11 @@ def main(args_cli):
                 print("========================")
                 print(sname.upper())
                 print("========================")
+
                 # Base arguments
                 m = copy.deepcopy(global_init)
                 bloss = BaselineLoss()
+
                 # We init the strategy parameters to the following default ones
                 args = {
                     "training_dataloaders": training_dls,
@@ -388,9 +407,41 @@ def main(args_cli):
                     "loss": bloss,
                     "optimizer_class": torch.optim.SGD,
                     "learning_rate": LR,
-                    "num_updates": num_updates,
-                    "nrounds": nrounds_list[idx],
+                    "num_updates": num_updates,     # number of updates to do on each client at each round
+                    "nrounds": nrounds_list[idx],   # fl communication round
                 }
+
+                #########################################
+                ### Data selection methods
+                #########################################
+
+                # import data selection method
+                import_data_selection_method(args_cli.data_selection)
+                print(f"Data selection method set: {args_cli.data_selection}")
+
+                # KS Loss data selection strategy
+                if args_cli.data_selection:
+                    if args_cli.data_selection == "KSLoss":
+                        ksloss_data_select = data_select_method(
+                            benchmark_model=m,
+                            loss_fn=BaselineLoss(),
+                            metric=metric,
+                            batch_size=BATCH_SIZE,
+                            args={
+                                **args,
+                                "dataset": args_cli.dataset,
+                                "benchmark_ds_percentage": args_cli.benchmark_ds_percentage,
+                                "benchmark_train_ratio": args_cli.benchmark_train_ratio,
+                                "num_epochs_benchmark_model_training": args_cli.num_epochs_benchmark_model_training,
+                            },
+                        )
+                        training_dls = ksloss_data_select.ksloss_data_selection(
+                            training_dls
+                        )
+                        args["training_dataloaders"] = training_dls
+                #########################################
+
+
                 if sname == "Cyclic":
                     args["rng"] = np.random.default_rng(args_cli.seed)
                 # We overwrite defaults with new hyperparameters from config
@@ -658,6 +709,43 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument("--seed", default=0, type=int, help="Seed")
+
+    ################################################
+    # Data selection method specific arguments
+    ################################################
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=False,
+        default="FedHeartDisease",
+        help="[OPTIONAL] Name of the Dataset that should be used. Default is FedHeartDisease.",
+    )
+    parser.add_argument(
+        "--data_selection",
+        default=None,
+        help="[OPTIONAL] Name of the data selection strategy that should be used. Default is None.",
+    )
+
+    # KSLoss specific arguments
+    parser.add_argument(
+        "--benchmark_ds_percentage",
+        type=float,
+        default=0.05,
+        help="[OPTIONAL] Percentage of client's data that is given to the benchmark dataset. Default is 0.05.",
+    )
+    parser.add_argument(
+        "--benchmark_train_ratio",
+        type=float,
+        default=0.8,
+        help="[OPTIONAL] Ratio of the benchmark dataset that is used for training. Default is 0.8.",
+    )
+    parser.add_argument(
+        "--num_epochs_benchmark_model_training",
+        type=int,
+        default=20,
+        help="[OPTIONAL] Number of epochs the benchmark model is trained for. Default is 20.",
+    )
+
 
     args = parser.parse_args()
 

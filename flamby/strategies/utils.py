@@ -191,7 +191,7 @@ class _Model:
 
         # Local train
         _size = len(dataloader_with_memory)
-        self.model = self.model.train()
+        self.model.train()
         for _batch in range(num_updates):
             self.model.train()
             X, y = dataloader_with_memory.get_samples()
@@ -239,8 +239,9 @@ class _Model:
                         )
 
             # Validation
-            if _batch % 10 == 0:
+            if _batch % 1 == 0:
                 if validation_loader is not None:
+                    self.model.eval()
                     res, y_trues, y_preds = evaluate_model_on_tests(self.model, [validation_loader], metric, return_pred=True)
                     print(f"Validation {metric}: {res}")
                     if res["client_test_0"] > res_max:
