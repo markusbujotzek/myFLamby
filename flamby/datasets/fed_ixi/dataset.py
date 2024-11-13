@@ -2,6 +2,9 @@ import os
 from pathlib import Path
 from typing import Dict, Tuple
 from zipfile import ZipFile
+import hashlib
+import random
+import time
 
 import pandas as pd
 import torch
@@ -105,6 +108,11 @@ class IXITinyRaw(Dataset):
         self.filenames = [filename.name for filename in self.images_paths]
         self.subject_ids = tuple(map(_get_id_from_filename, self.filenames))
 
+        self.hash_ids = [
+            hashlib.sha256((str(self.images_paths[i]) + str(i) + str(time.time()) + str(random.random())).encode("utf-8")).hexdigest()
+            for i in range(len(self.images_paths))
+        ]
+
     @property
     def zip_file(self) -> ZipFile:
         zf = self.root_folder.joinpath(self.parent_folder + ".zip")
@@ -161,7 +169,7 @@ class IXITinyRaw(Dataset):
 
         if self.transform:
             img = self.transform(img)
-        return img.to(torch.float32), label
+        return img.to(torch.float32), label, self.hash_ids[item]
 
     def __len__(self) -> int:
         return len(self.images_paths)
