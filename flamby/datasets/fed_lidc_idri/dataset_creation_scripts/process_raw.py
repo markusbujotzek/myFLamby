@@ -260,7 +260,7 @@ def build_volumes(dicomdir, xml_path):
         list of ndarray (for each radiologist)
     """
     dcms = glob.glob(dicomdir + "/*.dcm")
-    dicoms = [pydicom.read_file(dcm, stop_before_pixels=False) for dcm in dcms]
+    dicoms = [pydicom.dcmread(dcm, stop_before_pixels=False) for dcm in dcms]
     dicoms = sorted(dicoms, key=lambda x: float(x.ImagePositionPatient[-1]))
     voxel_ndarray, ijk_to_xyz = dicom_numpy.combine_slices(dicoms)
     voxel_ndarray = correct_ct_intensity(voxel_ndarray)
