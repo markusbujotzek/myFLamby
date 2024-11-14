@@ -16,7 +16,7 @@ torch.manual_seed(42)
 
 
 def evaluate_model_on_tests(
-    model, test_dataloaders, metric, use_gpu=True, return_pred=False
+    model, test_dataloaders, metric, use_gpu=True, return_pred=False, tqdm=False
 ):
     """This function takes a pytorch model and evaluate it on a list of\
     dataloaders using the provided metric function.
@@ -46,7 +46,8 @@ def evaluate_model_on_tests(
         model = model.cuda()
     model.eval()
     with torch.no_grad():
-        for i in tqdm(range(len(test_dataloaders))):
+        # for i in tqdm(range(len(test_dataloaders))):
+        for i in (tqdm(range(len(test_dataloaders))) if tqdm else range(len(test_dataloaders))):
             rng_state = torch.get_rng_state()
             test_dataloader_iterator = iter(test_dataloaders[i])
             # since iterating over the dataloader changes torch random state

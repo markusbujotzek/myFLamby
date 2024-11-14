@@ -23,6 +23,8 @@ class FedAvg:
     ----------
     training_dataloaders : List
         The list of training dataloaders from multiple training centers.
+    val_dataloaders : List
+        The list of validation dataloaders from multiple training centers.
     model : torch.nn.Module
         An initialized torch model.
     loss : torch.nn.modules.loss._Loss
@@ -32,6 +34,8 @@ class FedAvg:
         The class of the torch model optimizer to use at each step.
     learning_rate : float
         The learning rate to be given to the optimizer_class.
+    metric:
+        #TODO
     num_updates : int
         The number of updates to do on each client at each round.
     nrounds : int
@@ -64,10 +68,12 @@ class FedAvg:
     def __init__(
         self,
         training_dataloaders: List,
+        val_dataloaders: List,
         model: torch.nn.Module,
         loss: torch.nn.modules.loss._Loss,
         optimizer_class: torch.optim.Optimizer,
         learning_rate: float,
+        metric,
         num_updates: int,
         nrounds: int,
         dp_target_epsilon: float = None,
@@ -90,6 +96,12 @@ class FedAvg:
         ]
         self.training_sizes = [len(e) for e in self.training_dataloaders_with_memory]
         self.total_number_of_samples = sum(self.training_sizes)
+
+        self.val_data_loaders = val_dataloaders
+        self.val_sizes = [len(e) for e in self.val_data_loaders]
+        self.total_number_of_val_samples = sum(self.val_sizes)
+
+        self.metric = metric
 
         self.dp_target_epsilon = dp_target_epsilon
         self.dp_target_delta = dp_target_delta
@@ -126,7 +138,9 @@ class FedAvg:
         self.num_clients = len(self.training_sizes)
         self.bits_counting_function = bits_counting_function
 
-    def _local_optimization(self, _model: _Model, dataloader_with_memory):
+    def _local_optimization(
+        self, _model: _Model, dataloader_with_memory, val_dataloader
+    ):
         """Carry out the local optimization step.
 
         Parameters
@@ -137,7 +151,10 @@ class FedAvg:
             A dataloader that can be called infinitely using its get_samples()
             method.
         """
-        _model._local_train(dataloader_with_memory, self.num_updates)
+        metric_score = _model._local_train(
+            dataloader_with_memory, val_dataloader, self.num_updates, self.metric
+        )
+        return metric_score
 
     def perform_round(self):
         """Does a single federated averaging round. The following steps will be
@@ -149,13 +166,19 @@ class FedAvg:
         - the averaged updates willl be used to update the local model
         """
         local_updates = list()
-        # iteratres over all clients
-        for _model, dataloader_with_memory, size in zip(
-            self.models_list, self.training_dataloaders_with_memory, self.training_sizes
+        local_metric_scores = list()
+        for _model, dataloader_with_memory, val_dataloader, size in zip(
+            self.models_list,
+            self.training_dataloaders_with_memory,
+            self.val_data_loaders,
+            self.training_sizes,
         ):
             # Local Optimization
             _local_previous_state = _model._get_current_params()
-            self._local_optimization(_model, dataloader_with_memory)
+            metric_score = self._local_optimization(
+                _model, dataloader_with_memory, val_dataloader
+            )
+            local_metric_scores.append(metric_score)
             _local_next_state = _model._get_current_params()
 
             # Recovering updates
@@ -174,27 +197,59 @@ class FedAvg:
 
             local_updates.append({"updates": updates, "n_samples": size})
 
+        # aggregate client's metric scores
+        weighted_sum = sum(
+            item["metric"] * item["size"] for item in local_metric_scores
+        )
+        total_size = sum(item["size"] for item in local_metric_scores)
+        weighted_average_metric = weighted_sum / total_size
+
         # Aggregation step
         aggregated_delta_weights = [
             None for _ in range(len(local_updates[0]["updates"]))
         ]
         for idx_weight in range(len(local_updates[0]["updates"])):
-            aggregated_delta_weights[idx_weight] = sum([
-                local_updates[idx_client]["updates"][idx_weight]
-                * local_updates[idx_client]["n_samples"]
-                for idx_client in range(self.num_clients)
-            ])
+            aggregated_delta_weights[idx_weight] = sum(
+                [
+                    local_updates[idx_client]["updates"][idx_weight]
+                    * local_updates[idx_client]["n_samples"]
+                    for idx_client in range(self.num_clients)
+                ]
+            )
             aggregated_delta_weights[idx_weight] /= float(self.total_number_of_samples)
 
         # Update models
         for _model in self.models_list:
             _model._update_params(aggregated_delta_weights)
 
+        return weighted_average_metric
+
     def run(self):
         """This method performs self.nrounds rounds of averaging
         and returns the list of models.
         """
         # iterate over nrounds federated communication rounds
-        for _ in tqdm(range(self.nrounds)):
-            self.perform_round()
-        return [m.model for m in self.models_list]
+        best_val_metric = 0.0
+        best_models = list()
+        early_stopping_counter = 0
+        for current_round in tqdm(range(self.nrounds)):
+            weighted_average_metric = self.perform_round()
+            print(f"Current round: {current_round} --> metric: {weighted_average_metric}")
+
+            # check validation metric
+            if weighted_average_metric >= best_val_metric:
+                best_val_metric = weighted_average_metric
+                best_models = self.models_list
+                early_stopping_counter = 0
+                print(f"New best model with metric {best_val_metric}!")
+                print("Saving new best model...")
+            else:
+                early_stopping_counter += 1
+                print(
+                    f"Validation metric decreasing -> early stopping counter: {early_stopping_counter}"
+                )
+                if early_stopping_counter > 5:
+                    print("Early stopping!")
+                    break
+
+        return [m.model for m in best_models]

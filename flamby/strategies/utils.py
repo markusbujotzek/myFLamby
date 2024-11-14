@@ -173,7 +173,7 @@ class _Model:
         self.batch_size = None
         self.num_batches_per_epoch = None
 
-    def _local_train(self, dataloader_with_memory, num_updates, validation_loader=None, metric=None):
+    def _local_train(self, dataloader_with_memory, val_dataloader, num_updates, metric):
         """This method trains the model using the dataloader_with_memory given
         for num_updates steps.
 
@@ -237,23 +237,15 @@ class _Model:
                         self.writer.add_histogram(
                             f"client{self.client_id}/{name}", p, _current_epoch
                         )
-
-            # Validation
-            if _batch % 1 == 0:
-                if validation_loader is not None:
-                    self.model.eval()
-                    res, y_trues, y_preds = evaluate_model_on_tests(self.model, [validation_loader], metric, return_pred=True)
-                    print(f"Validation {metric}: {res}")
-                    if res["client_test_0"] > res_max:
-                        res_max = res["client_test_0"]
-                        print(f"New best model with {metric}: {res_max}")
-                    else:
-                        no_new_res_max += 1
-                        print(f"No new best model with {metric} for {no_new_res_max} epochs")
-                    if no_new_res_max > 100:
-                        break
-
             self.current_epoch = _current_epoch
+
+        # Validation
+        if val_dataloader is not None:
+            self.model.eval()
+            res = evaluate_model_on_tests(self.model, [val_dataloader], metric, tqdm=False)
+            metric_size_dict = {"metric": list(res.values())[0], "size": len(val_dataloader.dataset)}
+            return metric_size_dict
+            
 
     def _prox_local_train(self, dataloader_with_memory, num_updates, mu):
         """This method trains the model using the dataloader_with_memory given

@@ -99,7 +99,7 @@ def main(args_cli):
             ", otherwise modify the config file directly."
         )
     # Find a way to provide it through hyperparameters
-    run_num_updates = [100]
+    run_num_updates = [100]    # [100]
 
     # ensure that the config provided by the user is ok
     config = check_config(args_cli.config_file_path)
@@ -408,12 +408,14 @@ def main(args_cli):
                 # We init the strategy parameters to the following default ones
                 args = {
                     "training_dataloaders": training_dls,
+                    "val_dataloaders": test_dls,
                     "model": m,
                     "loss": bloss,
                     "optimizer_class": torch.optim.SGD,
                     "learning_rate": LR,
+                    "metric": metric,
                     "num_updates": num_updates,     # number of updates to do on each client at each round
-                    "nrounds": nrounds_list[idx],   # fl communication round
+                    "nrounds": 5000, # nrounds_list[idx],   # fl communication round
                 }
 
                 #########################################
