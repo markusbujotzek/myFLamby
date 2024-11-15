@@ -3,6 +3,12 @@ import copy
 import sys
 import os
 
+# Add the project root directory to the sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+# disable output buffering
+os.environ['PYTHONUNBUFFERED'] = '1'
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)
+
 import numpy as np
 import pandas as pd
 import torch
@@ -27,9 +33,6 @@ from flamby.benchmarks.conf import (
     get_strategies,
 )
 from flamby.gpu_utils import use_gpu_idx
-
-# Add the project root directory to the sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 def import_data_selection_method(data_selection_method):
     global data_select_method
