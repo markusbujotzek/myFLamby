@@ -4,10 +4,10 @@ import sys
 import os
 
 # Add the project root directory to the sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 # disable output buffering
-os.environ['PYTHONUNBUFFERED'] = '1'
-sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)
+os.environ["PYTHONUNBUFFERED"] = "1"
+sys.stdout = os.fdopen(sys.stdout.fileno(), "w", 1)
 
 import numpy as np
 import pandas as pd
@@ -34,11 +34,16 @@ from flamby.benchmarks.conf import (
 )
 from flamby.gpu_utils import use_gpu_idx
 
+from src.fed.noise.segmentation_noise import add_noise
+
+
 def import_data_selection_method(data_selection_method):
     global data_select_method
 
     if data_selection_method == "KSLoss":
-        from src.fed.data_selection_methods.KSLoss.ksloss import KSLoss as data_select_method
+        from src.fed.data_selection_methods.KSLoss.ksloss import (
+            KSLoss as data_select_method,
+        )
 
     elif not data_selection_method:
         print(
@@ -102,7 +107,7 @@ def main(args_cli):
             ", otherwise modify the config file directly."
         )
     # Find a way to provide it through hyperparameters
-    run_num_updates = [100]    # [100]
+    run_num_updates = [100]  # [100]
 
     # ensure that the config provided by the user is ok
     config = check_config(args_cli.config_file_path)
@@ -417,9 +422,27 @@ def main(args_cli):
                     "optimizer_class": torch.optim.SGD,
                     "learning_rate": LR,
                     "metric": metric,
-                    "num_updates": num_updates,     # number of updates to do on each client at each round
-                    "nrounds": 5000, # nrounds_list[idx],   # fl communication round
+                    "num_updates": num_updates,  # number of updates to do on each client at each round
+                    "nrounds": 5000,  # nrounds_list[idx],   # fl communication round
                 }
+
+                #########################################
+                ### Apply Label noise
+                #########################################
+                print(f"Applying label noise: {args_cli.label_noise} on {args_cli.noise_percentage} of the training data.")
+
+                if args_cli.label_noise:
+                    training_dls_ = []
+                    for training_dl in training_dls:
+                        training_dl = add_noise(
+                            noise_type=args_cli.label_noise,
+                            dataloader=training_dl,
+                            noise_percentage=args_cli.noise_percentage,
+                        )
+                        training_dls_.append(training_dl)
+                    args["training_dataloaders"] = training_dls_
+
+                #########################################
 
                 #########################################
                 ### Data selection methods
@@ -450,7 +473,6 @@ def main(args_cli):
                         )
                         args["training_dataloaders"] = training_dls
                 #########################################
-
 
                 if sname == "Cyclic":
                     args["rng"] = np.random.default_rng(args_cli.seed)
@@ -756,6 +778,21 @@ if __name__ == "__main__":
         help="[OPTIONAL] Number of epochs the benchmark model is trained for. Default is 20.",
     )
 
+    ################################################
+    # Label noise specific arguments
+    ################################################
+    parser.add_argument(
+        "--label_noise",
+        type=str,
+        default=None,
+        help="[OPTIONAL] Apply label noise to the training data. Default is None.",
+    )
+    parser.add_argument(
+        "--noise_percentage",
+        type=float,
+        default=0.3,
+        help="[OPTIONAL] The percentage of labels to be modified (0.0 to 1.0). Default is 0.3.",
+    )
 
     args = parser.parse_args()
 
