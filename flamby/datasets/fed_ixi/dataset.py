@@ -29,6 +29,8 @@ from flamby.datasets.fed_ixi.utils import (
 )
 from flamby.utils import check_dataset_from_config
 
+from src.fed.noise.segmentation_noise import ClosedSetLabelSwap
+
 
 class IXITinyRaw(Dataset):
     """
@@ -47,7 +49,14 @@ class IXITinyRaw(Dataset):
 
     CENTER_LABELS = {"Guys": 0, "HH": 1, "IOP": 2}
 
-    def __init__(self, transform=None, debug=False, data_path=None):
+    def __init__(
+        self,
+        transform=None,
+        debug=False,
+        data_path=None,
+        label_noise=None,
+        noise_percentage=None,
+    ):
         if data_path is None:
             dict = check_dataset_from_config("fed_ixi", debug)
             self.root_folder = Path(dict["dataset_path"])
@@ -109,10 +118,28 @@ class IXITinyRaw(Dataset):
         self.filenames = [filename.name for filename in self.images_paths]
         self.subject_ids = tuple(map(_get_id_from_filename, self.filenames))
 
+        # for data selection
         self.hash_ids = [
-            hashlib.sha256((str(self.images_paths[i]) + str(i) + str(time.time()) + str(random.random())).encode("utf-8")).hexdigest()
+            hashlib.sha256(
+                (
+                    str(self.images_paths[i])
+                    + str(i)
+                    + str(time.time())
+                    + str(random.random())
+                ).encode("utf-8")
+            ).hexdigest()
             for i in range(len(self.images_paths))
         ]
+
+        # for label noise
+        if noise_percentage is not None:
+            self.dataset_class_labels = [0, 1]  # XIX dataset w/ bg and brain mask
+            self.label_noise = label_noise
+            num_noisy = int(len(self.images_paths) * noise_percentage)
+            self.label_noise_indicator = [True] * num_noisy + [False] * (
+                len(self.images_paths) - num_noisy
+            )
+            random.shuffle(self.label_noise_indicator)
 
     @property
     def zip_file(self) -> ZipFile:
@@ -150,7 +177,11 @@ class IXITinyRaw(Dataset):
         )
 
         default_transform = Compose(
-            [ToTensor(), EnsureChannelFirst(channel_dim="no_channel"), Resize(self.common_shape)]
+            [
+                ToTensor(),
+                EnsureChannelFirst(channel_dim="no_channel"),
+                Resize(self.common_shape),
+            ]
         )
         # default_transform = Compose(
         #     [ToTensor(), AddChannel(), Resize(self.common_shape)]
@@ -160,10 +191,24 @@ class IXITinyRaw(Dataset):
 
         one_hot_transform = Compose([AsDiscrete(to_onehot=2)])
 
+        label_noise_transform = Compose(
+            [
+                ClosedSetLabelSwap(
+                    dataset_class_labels=self.dataset_class_labels,
+                    label_swap_type="closed_set_label_flip",
+                )
+            ]
+        )
+
         img = default_transform(img)
         img = intensity_transform(img)
         label = default_transform(label)
         label = one_hot_transform(label)
+        label = (
+            label_noise_transform(label)
+            if self.label_noise and self.label_noise_indicator[item]
+            else label
+        )
 
         # metadata = {
         #     "IXI_ID": patient_id,
@@ -209,12 +254,16 @@ class FedIXITiny(IXITinyRaw):
         pooled=False,
         debug=False,
         data_path=None,
+        noise_percentage=None,
     ):
         """
         Cf class docstring
         """
         super(FedIXITiny, self).__init__(
-            transform=transform, debug=debug, data_path=data_path
+            transform=transform,
+            debug=debug,
+            data_path=data_path,
+            noise_percentage=noise_percentage,
         )
 
         self.modality = "T1"

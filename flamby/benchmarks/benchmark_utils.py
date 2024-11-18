@@ -194,6 +194,7 @@ def init_data_loaders(
     num_clients=None,
     batch_size_test=None,
     collate_fn=None,
+    noise_percentage=None,
 ):
     """
     Initializes the data loaders for the training and test datasets.
@@ -211,7 +212,14 @@ def init_data_loaders(
                     num_workers=num_workers,
                     collate_fn=collate_fn,
                 )
-                if len(center_dataset := dataset(center=i, train=True, pooled=False))
+                if len(
+                    center_dataset := dataset(
+                        center=i,
+                        train=True,
+                        pooled=False,
+                        noise_percentage=noise_percentage,
+                    )
+                )
                 > 0
                 else None
             )
@@ -226,7 +234,13 @@ def init_data_loaders(
                     num_workers=num_workers,
                     collate_fn=collate_fn,
                 )
-                if len(center_dataset := dataset(center=i, train=False, pooled=False))
+                if len(
+                    center_dataset := dataset(
+                        center=i,
+                        train=False,
+                        pooled=False,
+                    )
+                )
                 > 0
                 else None
             )

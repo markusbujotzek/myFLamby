@@ -193,6 +193,7 @@ def main(args_cli):
         num_clients=NUM_CLIENTS,
         batch_size_test=batch_size_test,
         collate_fn=collate_fn,
+        noise_percentage=args_cli.noise_percentage,
     )
     train_pooled, test_pooled = init_data_loaders(
         dataset=FedDataset,
@@ -429,18 +430,22 @@ def main(args_cli):
                 #########################################
                 ### Apply Label noise
                 #########################################
-                print(f"Applying label noise: {args_cli.label_noise} on {args_cli.noise_percentage} of the training data.")
-
+                print(
+                    f"Applying label noise: {args_cli.label_noise} on {args_cli.noise_percentage} of the training data."
+                )
+                # if args_cli.label_noise:
+                #     training_dls_ = []
+                #     for training_dl in training_dls:
+                #         training_dl = add_noise(
+                #             noise_type=args_cli.label_noise,
+                #             dataloader=training_dl,
+                #             noise_percentage=args_cli.noise_percentage,
+                #         )
+                #         training_dls_.append(training_dl)
+                #     args["training_dataloaders"] = training_dls_
                 if args_cli.label_noise:
-                    training_dls_ = []
                     for training_dl in training_dls:
-                        training_dl = add_noise(
-                            noise_type=args_cli.label_noise,
-                            dataloader=training_dl,
-                            noise_percentage=args_cli.noise_percentage,
-                        )
-                        training_dls_.append(training_dl)
-                    args["training_dataloaders"] = training_dls_
+                        training_dl.dataset.label_noise = True # args_cli.label_noise
 
                 #########################################
 
@@ -790,7 +795,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--noise_percentage",
         type=float,
-        default=0.3,
+        default=0.0,
         help="[OPTIONAL] The percentage of labels to be modified (0.0 to 1.0). Default is 0.3.",
     )
 
