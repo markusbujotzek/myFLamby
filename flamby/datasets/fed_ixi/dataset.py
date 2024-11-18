@@ -9,7 +9,8 @@ import time
 import pandas as pd
 import torch
 from monai.transforms import (
-    AddChannel,
+    # AddChannel,
+    EnsureChannelFirst,
     AsDiscrete,
     Compose,
     NormalizeIntensity,
@@ -149,8 +150,11 @@ class IXITinyRaw(Dataset):
         )
 
         default_transform = Compose(
-            [ToTensor(), AddChannel(), Resize(self.common_shape)]
+            [ToTensor(), EnsureChannelFirst(channel_dim="no_channel"), Resize(self.common_shape)]
         )
+        # default_transform = Compose(
+        #     [ToTensor(), AddChannel(), Resize(self.common_shape)]
+        # )
 
         intensity_transform = Compose([NormalizeIntensity()])
 
